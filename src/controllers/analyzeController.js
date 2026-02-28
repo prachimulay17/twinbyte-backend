@@ -1,4 +1,4 @@
-import { analyzeTextHF } from "../services/hfservice.js";
+import { analyzeText } from "../services/aiService.js";
 
 export const analyzeMessage = async (req, res) => {
   try {
@@ -11,28 +11,19 @@ export const analyzeMessage = async (req, res) => {
       });
     }
 
-    const hfResult = await analyzeTextHF(message);
+    const aiRawResponse = await analyzeText(message);
 
-    const labels = hfResult.labels;
-    const scores = hfResult.scores;
+    let cleaned = aiRawResponse.trim();
 
-    const fakeIndex = labels.indexOf("fake news");
-    const fakeScore = scores[fakeIndex];
+if (cleaned.startsWith("```")) {
+  cleaned = cleaned.replace(/```json|```/g, "").trim();
+}
 
-    const riskScore = Math.round(fakeScore * 100);
-
-    let riskCategory = "Low";
-    if (riskScore >= 70) riskCategory = "High";
-    else if (riskScore >= 40) riskCategory = "Medium";
+const analysis = JSON.parse(cleaned);
 
     return res.status(200).json({
       success: true,
-      risk_score: riskScore,
-      risk_category: riskCategory,
-      explanation:
-        riskCategory === "High"
-          ? "The content is likely misleading or inconsistent with factual reporting."
-          : "The content does not strongly resemble fake news patterns."
+      ...analysis
     });
 
   } catch (error) {
