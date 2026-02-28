@@ -1,7 +1,8 @@
 import express from 'express';
-import dotenv from "dotenv";
+
 import cors from 'cors';
-dotenv.config();
+import analyzeRoute from "./routes/analyzeRoute.js";
+
 
 const app = express();
 
@@ -10,9 +11,12 @@ app.use(cors({
     
 }))
 
+
 app.use(express.json({limit:"50mb"}));
 app.use(express.urlencoded({limit:"50mb", extended:true}));
 app.use(express.static("public"));
 
+//router
+app.use("/api", analyzeRoute);
 
 export default app;
