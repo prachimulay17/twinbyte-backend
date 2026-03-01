@@ -1,4 +1,4 @@
-import { analyzeText } from "../services/aiService.js";
+import { analyzeText } from "../services/ai.service.js";
 
 export const analyzeMessage = async (req, res) => {
   try {
@@ -15,11 +15,11 @@ export const analyzeMessage = async (req, res) => {
 
     let cleaned = aiRawResponse.trim();
 
-if (cleaned.startsWith("```")) {
-  cleaned = cleaned.replace(/```json|```/g, "").trim();
-}
+    if (cleaned.startsWith("```")) {
+      cleaned = cleaned.replace(/```json|```/g, "").trim();
+    }
 
-const analysis = JSON.parse(cleaned);
+    const analysis = JSON.parse(cleaned);
 
     return res.status(200).json({
       success: true,
