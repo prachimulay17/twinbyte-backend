@@ -35,6 +35,10 @@ const extractTextFromImage = async (imagePath) => {
   }
 };
 
+const clamp = (value, min = 0, max = 100) => {
+  return Math.min(Math.max(value, min), max);
+};
+
 /* ------------------ MAIN ANALYSIS FUNCTION ------------------ */
 
 export const analyzeContent = async ({ text = "", imagePath = null }) => {
@@ -107,3 +111,4 @@ Content:
     throw new Error("AI analysis failed: " + error.message);
   }
 };
+
