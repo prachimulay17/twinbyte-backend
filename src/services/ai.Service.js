@@ -1,83 +1,109 @@
 import axios from "axios";
+import fs from "fs";
+import FormData from "form-data";
 
-/**
- * Analyze text and/or image using local Ollama (Mistral).
- */
-export const analyzeContent = async ({ text = "", imagePath = null }) => {
-    try {
-        if (!text && !imagePath) {
-            throw new Error("No content provided for analysis");
-        }
+/* ------------------ OCR FUNCTION ------------------ */
 
-        // Since Mistral (text model) does not analyze images directly,
-        // we handle image by informing model that image was provided.
-        const prompt = `
-You are an AI misinformation detection system built for rural India.
+const extractTextFromImage = async (imagePath) => {
+  try {
+    const formData = new FormData();
+    formData.append("file", fs.createReadStream(imagePath));
+    formData.append("apikey", process.env.OCR_SPACE_API_KEY); // Put key in .env
+    formData.append("language", "eng");
 
-Your task:
-1. Detect whether the content contains misinformation.
-2. Assign a risk score (0–100).
-3. Provide a short, clear explanation.
-4. The explanation MUST be in the SAME language as the input text.
-   Supported languages: English, Hindi, Marathi.
-5. If input language is Hindi or Marathi, respond fully in that language.
-6. Explanation must directly refer to the content provided.
-7. Do NOT give generic answers.
-8. Do NOT include markdown.
-9. Return ONLY valid JSON.
+    const response = await axios.post(
+      "https://api.ocr.space/parse/image",
+      formData,
+      {
+        headers: formData.getHeaders()
+      }
+    );
+    console.log("OCR RAW RESPONSE:", response.data);
 
-Output format:
-
-{
-  "result":"Likely Fake / Possibly Misleading / Likely Real",
-  "riskScore": number (0-100),
-  "confidence": number (0-100),
-  "explanation": "2-3 sentence explanation in same language as input"
-}
-
-Content:
-${text ? `Text: "${text}"` : ""}
-${imagePath ? "An image screenshot was provided. Analyze visible misinformation patterns." : ""}
-`;
-        const response = await axios.post(
-            "http://localhost:11434/api/generate",
-            {
-                model: "mistral",
-                prompt: prompt,
-                stream: false,
-            }
-        );
-
-        const rawText = response.data.response.trim();
-
-        // Mistral sometimes wraps JSON in markdown OR adds extra prose around it.
-        // Strategy: strip markdown fences first, then extract the first {...} block.
-        const stripped = rawText.replace(/```json|```/g, "");
-        const jsonMatch = stripped.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) {
-            console.error("Ollama raw response (no JSON found):", rawText);
-            throw new Error("Model did not return a valid JSON object");
-        }
-        const parsed = JSON.parse(jsonMatch[0]);
-
-        return {
-            result: parsed.explanation || parsed.result || "Analysis complete.",
-            riskScore: clamp(Number(parsed.riskScore)),
-            confidence: clamp(Number(parsed.confidence)),
-        };
-
-    } catch (error) {
-        import('fs').then(fs => fs.appendFileSync('C:/tmp/ai_error2.log', '\n--- OLLAMA ERROR ---\n' + (error.stack || error.message) + '\n'));
-        throw new Error("AI analysis failed: " + error.message);
+    if (
+      !response.data ||
+      !response.data.ParsedResults ||
+      !response.data.ParsedResults[0]
+    ) {
+      throw new Error("OCR failed");
     }
+
+    return response.data.ParsedResults[0].ParsedText || "";
+  } catch (error) {
+    console.error("OCR Error:", error.message);
+    return ""; // fallback safely
+  }
 };
 
-export const analyzeText = analyzeContent;
+/* ------------------ MAIN ANALYSIS FUNCTION ------------------ */
 
-// ── Helpers ─────────────────────────────────────────────
+export const analyzeContent = async ({ text = "", imagePath = null }) => {
+  try {
+    if (!text && !imagePath) {
+      throw new Error("No content provided for analysis");
+    }
 
-function clamp(value) {
-    if (isNaN(value)) return 50;
-    return Math.min(100, Math.max(0, value));
-}
+    let finalText = text;
 
+    if (imagePath) {
+      const extractedText = await extractTextFromImage(imagePath);
+      finalText += "\n" + extractedText;
+    }
+
+    if (!finalText.trim()) {
+      finalText = "No clearly readable text was found in the uploaded image.";
+    }
+
+    const prompt = `
+Analyze the content and respond in EXACT format:
+
+RESULT: <Likely Fake / Possibly Misleading / Likely Real>
+RISK: <number between 0 and 100>
+CONFIDENCE: <number between 0 and 100>
+EXPLANATION: <Exactly 3 sentences explaining reasoning in English>
+
+Do not use JSON.
+Do not add extra text.
+Do not add markdown.
+
+Content:
+"${finalText}"
+`;
+
+    const response = await axios.post(
+      "http://localhost:11434/api/generate",
+      {
+        model: "mistral",
+        prompt,
+        stream: false,
+        options: {
+          temperature: 0.1,
+          num_predict: 300
+        }
+      }
+    );
+
+    const rawText = response.data.response.trim();
+    console.log("RAW MODEL OUTPUT:\n", rawText);
+
+    // Parse structured output safely
+    const resultMatch = rawText.match(/RESULT:\s*(.*)/i);
+    const riskMatch = rawText.match(/RISK:\s*(\d+)/i);
+    const confidenceMatch = rawText.match(/CONFIDENCE:\s*(\d+)/i);
+    const explanationMatch = rawText.match(/EXPLANATION:\s*([\s\S]*)/i);
+
+    if (!resultMatch || !riskMatch || !confidenceMatch || !explanationMatch) {
+      throw new Error("Model response format invalid");
+    }
+
+    return {
+      result: resultMatch[1].trim(),
+      riskScore: clamp(Number(riskMatch[1])),
+      confidence: clamp(Number(confidenceMatch[1])),
+      explanation: explanationMatch[1].trim()
+    };
+
+  } catch (error) {
+    throw new Error("AI analysis failed: " + error.message);
+  }
+};

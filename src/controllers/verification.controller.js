@@ -12,6 +12,7 @@ export const verifyContent = async (req, res) => {
 
     try {
         const text = req.body.text?.trim() ?? "";
+        const preferredLanguage = req.body.language?.trim() ?? "English";
 
         // ── Validation ──────────────────────────────────────────────────────────
         if (!text && !req.file) {
@@ -25,9 +26,10 @@ export const verifyContent = async (req, res) => {
         const contentType = req.file ? "image" : "text";
 
         // ── AI Analysis ─────────────────────────────────────────────────────────
-        const { result, riskScore, confidence } = await analyzeContent({
+        const { result, riskScore, confidence,explanation} = await analyzeContent({
             text: text || undefined,
             imagePath: uploadedFilePath,
+            preferredLanguage,
         });
 
         // ── Save to DB ──────────────────────────────────────────────────────────
@@ -36,6 +38,7 @@ export const verifyContent = async (req, res) => {
             inputText: text || null,
             imageUrl: req.file ? req.file.filename : null,
             aiResult: result,
+            explanation: explanation,
             riskScore,
             confidence,
         });
@@ -46,6 +49,7 @@ export const verifyContent = async (req, res) => {
             id: record._id,
             type: record.type,
             aiResult: record.aiResult,
+            explanation: record.explanation,
             riskScore: record.riskScore,
             confidence: record.confidence,
             createdAt: record.createdAt,

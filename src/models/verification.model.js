@@ -18,6 +18,9 @@ const verificationSchema = new mongoose.Schema({
         type: String,
         required: true,
     },
+    explanation: {
+    type: String
+},
     riskScore: {
         type: Number,
         required: true,

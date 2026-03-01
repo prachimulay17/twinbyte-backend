@@ -1,4 +1,4 @@
-import { analyzeText } from "../services/ai.service.js";
+import { analyzeContent } from "../services/ai.service.js";
 
 export const analyzeMessage = async (req, res) => {
   try {
@@ -11,7 +11,7 @@ export const analyzeMessage = async (req, res) => {
       });
     }
 
-    const aiRawResponse = await analyzeText(message);
+    const aiRawResponse = await analyzeContent(message);
 
     let cleaned = aiRawResponse.trim();
 
