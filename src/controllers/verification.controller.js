@@ -26,10 +26,10 @@ export const verifyContent = async (req, res) => {
         const contentType = req.file ? "image" : "text";
 
         // ── AI Analysis ─────────────────────────────────────────────────────────
-        const { result, riskScore, confidence,explanation} = await analyzeContent({
+        const { result, riskScore, confidence, explanation } = await analyzeContent({
             text: text || undefined,
             imagePath: uploadedFilePath,
-            preferredLanguage,
+            language: preferredLanguage,
         });
 
         // ── Save to DB ──────────────────────────────────────────────────────────
